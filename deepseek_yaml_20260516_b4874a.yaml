@@ -1,0 +1,47 @@
+name: Build SFX Installer
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # позволяет запускать сборку вручную
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build EXE with PyInstaller
+      run: |
+        pyinstaller --onefile --console --name ContactParser app.py
+
+    - name: Download 7-Zip SFX module
+      run: |
+        Invoke-WebRequest -Uri "https://www.7-zip.org/a/7z2301-extra.7z" -OutFile "7z-extra.7z"
+        7z x 7z-extra.7z -o7z-extra
+        copy .\7z-extra\7z.sfx .\7z.sfx
+
+    - name: Create SFX archive
+      run: |
+        copy .\dist\ContactParser.exe .\ContactParser.exe
+        copy .\.env.example .\.env
+        7z a -t7z archive.7z ContactParser.exe .env
+        cmd /c copy /b 7z.sfx + config.txt + archive.7z ContactParser_SFX.exe
+
+    - name: Upload SFX artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ContactParser_Installer
+        path: ContactParser_SFX.exe
